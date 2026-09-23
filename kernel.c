@@ -555,4 +555,173 @@ static void draw_icon(int x, int y, const char *label, char c1, char c2) {
     fill_rect(x + 1, y + 1, ICON_W - 2, 6, COLOR_LIGHT_GRAY);
     draw_char(x + 6, y + 12, c1, COLOR_BLACK);
     draw_char(x + 14, y + 12, c2, COLOR_BLACK);
-    draw_string(x, y + ICON_H +
+    draw_string(x, y + ICON_H + 2, label, COLOR_WHITE);
+}
+
+static void draw_taskbar(void) {
+    fill_rect(0, TASKBAR_Y, SCREEN_W, TASKBAR_H, COLOR_LIGHT_GRAY);
+    for (int x = 0; x < SCREEN_W; x++) putpixel(x, TASKBAR_Y, COLOR_WHITE);
+    for (int x = 0; x < SCREEN_W; x++) putpixel(x, SCREEN_H - 1, COLOR_DARK_GRAY);
+
+    unsigned char c1 = (active_app == APP_CONSOLE) ? COLOR_LIGHT_BLUE : COLOR_DARK_GRAY;
+    unsigned char c2 = (active_app == APP_EDITOR)  ? COLOR_LIGHT_BLUE : COLOR_DARK_GRAY;
+
+    fill_rect(4, TASKBAR_Y + 2, 72, TASKBAR_H - 4, c1);
+    draw_string(10, TASKBAR_Y + 4, "CONSOLE", COLOR_WHITE);
+
+    fill_rect(80, TASKBAR_Y + 2, 72, TASKBAR_H - 4, c2);
+    draw_string(86, TASKBAR_Y + 4, "EDITOR", COLOR_WHITE);
+
+    int h, m;
+    read_time(&h, &m);
+    char buf[6];
+    buf[0] = '0' + (h / 10);
+    buf[1] = '0' + (h % 10);
+    buf[2] = ':';
+    buf[3] = '0' + (m / 10);
+    buf[4] = '0' + (m % 10);
+    buf[5] = 0;
+    draw_string(SCREEN_W - 22 - 8 * 5 - 8, TASKBAR_Y + 4, buf, COLOR_BLACK);
+
+    fill_rect(SCREEN_W - 22, TASKBAR_Y + 2, 18, TASKBAR_H - 4, COLOR_LIGHT_RED);
+    draw_char(SCREEN_W - 18, TASKBAR_Y + 4, 'X', COLOR_WHITE);
+}
+
+static void draw_con_window(void) {
+    if (!con_open) return;
+
+    fill_rect(con_x + 2, con_y + 2, con_w, con_h, COLOR_DARK_GRAY);
+    fill_rect(con_x, con_y, con_w, con_h, COLOR_BLACK);
+    unsigned char hdr = (active_app == APP_CONSOLE) ? COLOR_LIGHT_BLUE : COLOR_DARK_GRAY;
+    fill_rect(con_x + 1, con_y + 1, con_w - 2, WIN_HEADER_H - 1, hdr);
+    draw_string(con_x + 4, con_y + 2, "CONSOLE", COLOR_WHITE);
+
+    int mx = con_x + con_w - 24, my = con_y + 3;
+    fill_rect(mx, my, 10, 10, COLOR_LIGHT_GRAY);
+    for (int i = 3; i < 7; i++) putpixel(mx + i, my + 7, COLOR_BLACK);
+
+    int cx = con_x + con_w - 12, cy = con_y + 3;
+    fill_rect(cx, cy, 10, 10, COLOR_LIGHT_RED);
+    draw_char(cx + 1, cy + 1, 'X', COLOR_BLACK);
+
+    fill_rect(con_x + 1, con_y + WIN_HEADER_H, con_w - 2, con_h - WIN_HEADER_H - 1, COLOR_BLACK);
+
+    int max_cols = (con_w - 4) / 8;
+    int max_rows = (con_h - WIN_HEADER_H - 2) / 8;
+    if (max_cols > CON_COLS) max_cols = CON_COLS;
+    if (max_rows > CON_ROWS) max_rows = CON_ROWS;
+
+    for (int r = 0; r < max_rows; r++)
+        for (int c = 0; c < max_cols; c++) {
+            char ch = console_buf[r][c];
+            if (ch != ' ')
+                draw_char(con_x + 2 + c * 8, con_y + WIN_HEADER_H + 1 + r * 8, ch, COLOR_LIGHT_GREEN);
+        }
+
+    if (cursor_blink && con_cur_row < max_rows && con_cur_col < max_cols) {
+        int px = con_x + 2 + con_cur_col * 8;
+        int py = con_y + WIN_HEADER_H + 1 + con_cur_row * 8 + 7;
+        for (int i = 0; i < 8; i++) putpixel(px + i, py, COLOR_LIGHT_GREEN);
+    }
+
+    int rx = con_x + con_w - 10, ry = con_y + con_h - 10;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3 - i; j++) {
+            putpixel(rx + i * 3 + j, ry + i * 3, COLOR_WHITE);
+            putpixel(rx + i * 3, ry + i * 3 + j, COLOR_WHITE);
+        }
+}
+
+static void draw_ed_window(void) {
+    if (!ed_open) return;
+
+    fill_rect(ed_x + 2, ed_y + 2, ed_w, ed_h, COLOR_DARK_GRAY);
+    fill_rect(ed_x, ed_y, ed_w, ed_h, COLOR_BLACK);
+    unsigned char hdr = (active_app == APP_EDITOR) ? COLOR_LIGHT_BLUE : COLOR_DARK_GRAY;
+    fill_rect(ed_x + 1, ed_y + 1, ed_w - 2, WIN_HEADER_H - 1, hdr);
+    draw_string(ed_x + 4, ed_y + 2, "EDITOR", COLOR_WHITE);
+
+    int cx = ed_x + ed_w - 12, cy = ed_y + 3;
+    fill_rect(cx, cy, 10, 10, COLOR_LIGHT_RED);
+    draw_char(cx + 1, cy + 1, 'X', COLOR_BLACK);
+
+    fill_rect(ed_x + 1, ed_y + WIN_HEADER_H, ed_w - 2, ed_h - WIN_HEADER_H - 1, COLOR_LIGHT_BLUE);
+
+    int max_cols = (ed_w - 4) / 8;
+    int max_rows = (ed_h - WIN_HEADER_H - 2) / 8;
+    if (max_cols > ED_COLS) max_cols = ED_COLS;
+    if (max_rows > ED_ROWS) max_rows = ED_ROWS;
+
+    for (int r = 0; r < max_rows; r++)
+        for (int c = 0; c < max_cols; c++) {
+            char ch = editor_buf[r][c];
+            if (ch != ' ')
+                draw_char(ed_x + 2 + c * 8, ed_y + WIN_HEADER_H + 1 + r * 8, ch, COLOR_BLACK);
+        }
+
+    if (cursor_blink && ed_cur_row < max_rows && ed_cur_col < max_cols) {
+        int px = ed_x + 2 + ed_cur_col * 8;
+        int py = ed_y + WIN_HEADER_H + 1 + ed_cur_row * 8 + 7;
+        for (int i = 0; i < 8; i++) putpixel(px + i, py, COLOR_RED);
+    }
+}
+
+static void draw_cursor(void) {
+    for (int y = 0; y < CURSOR_H; y++)
+        for (int x = 0; x < CURSOR_W; x++) {
+            unsigned char p = cursor_sprite[y][x];
+            if (p == 0) continue;
+            unsigned char color = (p == 1) ? COLOR_WHITE : COLOR_BLACK;
+            putpixel(mouse_x + x, mouse_y + y, color);
+        }
+}
+
+static void redraw(void) {
+    draw_wallpaper();
+    draw_icon(ICON1_X, ICON1_Y, "CONSOLE", '>', '_');
+    draw_icon(ICON2_X, ICON2_Y, "EDITOR", 'A', 'B');
+    if (con_open) draw_con_window();
+    if (ed_open) draw_ed_window();
+    draw_taskbar();
+    draw_cursor();
+}
+
+void kernel_main(void) {
+    con_clear();
+    con_print("HayrullOS V0.8\n");
+    con_print("CONSOLE + EDITOR\n");
+    con_print("CLICK ICONS OR TASKBAR.\n");
+    con_print("> ");
+
+    for (int r = 0; r < ED_ROWS; r++)
+        for (int c = 0; c < ED_COLS; c++)
+            editor_buf[r][c] = ' ';
+
+    mouse_init();
+    redraw();
+
+    while (1) {
+        ps2_poll();
+
+        if (mouse_clicked) { mouse_clicked = 0; on_click(mouse_x, mouse_y); }
+        if (mouse_released) { mouse_released = 0; on_release(); }
+       лось on_move();
+
+        tick++;
+        if (tick % 150000 == 0) {
+            cursor_blink = !cursor_blink;
+            needs_redraw = 1;
+        }
+
+        int h, m;
+        read_time(&h, &m);
+        if (m != last_shown_min) { last_shown_min = m; needs_redraw = 1; }
+
+        if (needs_redraw) {
+            redraw();
+            needs_redraw = 0;
+        }
+
+        __asm__ volatile ("pause");
+    }
+}
